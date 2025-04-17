@@ -1,34 +1,49 @@
-import re
+import os
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.filters import CommandStart
-from aiogram import Router
-from aiogram.client.default import DefaultBotProperties
+from aiogram.types import Message
+from aiohttp import web
 
-API_TOKEN = '7794147282:AAFhJFb2fTvVgQxzy20oehf7S0rV6hIF4dk'
+TOKEN = "7794147282:AAFhJFb2fTvVgQxzy20oehf7S0rV6hIF4dk"
 
-bot = Bot(
-    token=API_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-)
-
-dp = Dispatcher(storage=MemoryStorage())
-router = Router()
-dp.include_router(router)
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
 
 
-@router.message()
-async def handle_message(message: types.Message):
+@dp.message()
+async def handle_message(message: Message):
     text = message.text
-    amounts = re.findall(r'-\s*([\d\s]+)₽', text)
-    total = sum(int(a.replace(' ', '')) for a in amounts)
-    await message.answer(f"<b>Общий баланс: {total}₽</b>")
+    total = 0
+    for line in text.splitlines():
+        if "₽" in line and "-" in line:
+            try:
+                part = line.split("-")[-1].replace("₽",
+                                                   "").replace(" ", "").strip()
+                total += int(part)
+            except:
+                pass
+    await message.answer(f"💰 Общая сумма: {total}₽")
+
+
+async def start_bot():
+    await dp.start_polling(bot)
+
+
+async def handle(request):
+    return web.Response(text="Bot is running")
+
+
+async def start_web():
+    app = web.Application()
+    app.add_routes([web.get("/", handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8080)))
+    await site.start()
 
 
 async def main():
-    await dp.start_polling(bot)
+    await asyncio.gather(start_bot(), start_web())
 
 if __name__ == "__main__":
     asyncio.run(main())
